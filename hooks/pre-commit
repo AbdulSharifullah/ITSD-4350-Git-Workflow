@@ -1,0 +1,18 @@
+#!/bin/sh
+
+echo "Running Flake8..."
+py -m flake8 calculator.py test_calculator.py
+if [ $? -ne 0 ]; then
+    echo "Flake8 failed. Commit blocked."
+    exit 1
+fi
+
+echo "Running PyTest..."
+py -m pytest
+if [ $? -ne 0 ]; then
+    echo "Tests failed. Commit blocked."
+    exit 1
+fi
+
+echo "All checks passed. Commit allowed."
+exit 0
