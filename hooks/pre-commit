@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-if command -v python >/dev/null 2>&1; then PYTHON=python; else PYTHON=py; fi
+if python --version >/dev/null 2>&1; then PYTHON=python; else PYTHON=py; fi
 "$PYTHON" -m flake8 calculator.py webapp.py test_calculator.py test_webapp.py scripts
 "$PYTHON" -m pytest
 "$PYTHON" scripts/build.py
