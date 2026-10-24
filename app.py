@@ -1,14 +1,21 @@
+import os
+
 from flask import Flask, request
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from calculator import add
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-secret")
+csrf = CSRFProtect(app)
 
 
 @app.route("/")
 def home():
-    return """
+    token = generate_csrf()
+    return f"""
     <h1>Simple Web Calculator</h1>
     <form method="POST" action="/calculate">
+        <input type="hidden" name="csrf_token" value="{token}">
         <input type="number" name="a" step="any" required>
         <input type="number" name="b" step="any" required>
         <button type="submit">Add</button>
