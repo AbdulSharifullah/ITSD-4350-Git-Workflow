@@ -5,7 +5,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from calculator import add
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-secret")
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
 csrf = CSRFProtect(app)
 
 
