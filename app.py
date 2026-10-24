@@ -9,7 +9,7 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-secret")
 csrf = CSRFProtect(app)
 
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def home():
     token = generate_csrf()
     return f"""
