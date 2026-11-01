@@ -19,7 +19,8 @@ installed dependencies into a Linux container image.
 ## Pipeline
 
 Push or pull request -> Flake8 -> pytest and coverage -> Python compilation ->
-SonarCloud scan and quality gate -> build and upload container artifact.
+SonarCloud scan -> build and upload container artifact. On `main`, the scan also
+waits for the quality gate before the build and delivery stages can proceed.
 
 Only a successful push to `main` continues to delivery:
 
@@ -30,7 +31,9 @@ smoke-test the deployed commit -> preserve deployment evidence.
 The configuration is `.github/workflows/ci.yml`. The existing `build-and-test`
 job name is retained. Feature branches and PRs build an artifact but never deploy.
 Review and protected-branch checks remain in place; an approved merge is manual.
-The scanner now explicitly waits for the configured SonarCloud quality gate.
+The scanner explicitly waits for the configured SonarCloud quality gate on
+`main`. Branch and PR scans retain the existing scan behavior: this SonarCloud
+organization rejects synchronous gate-status queries for non-main branches.
 No gate or required check is removed or relaxed.
 
 `staging-application-<commit>` contains `application.tar`, its SHA-256 checksum,
@@ -97,8 +100,9 @@ and real CSRF token through the POST and confirms 5 + 3 = 8. Invalid numeric
 input and missing CSRF must both return HTTP 400. Network/cold-start failures
 retry within a bounded window. Persistent failure exits nonzero.
 
-Tests and lint block the CI job. A failed SonarCloud gate blocks the artifact
-job. Every downstream job uses `needs`; no failure is converted into success.
+Tests and lint block the CI job. A failed SonarCloud gate on `main` blocks the
+artifact job and deployment. Every downstream job uses `needs`; no failure is
+converted into success.
 The publishing job only runs on `main`. The deployment job serializes staging
 updates, validates configuration, checks HTTP API errors, waits for the Render
 deployment ID to reach `live`, and fails on terminal errors or timeout.
