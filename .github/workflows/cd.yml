@@ -1,0 +1,123 @@
+name: Staging Deployment
+
+on:
+  workflow_run:
+    workflows: [CI Pipeline]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  APP_SHA: ${{ github.event.workflow_run.head_sha }}
+
+jobs:
+  publish-image:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    outputs:
+      image: ${{ steps.publish.outputs.image }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: staging-application-${{ github.event.workflow_run.head_sha }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Retrieve and verify the build artifact
+        run: |
+          sha256sum -c application.tar.sha256
+          docker load -i application.tar
+      - name: Publish the same image to GitHub Container Registry
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}-staging"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker tag calculator:$APP_SHA "$image:$APP_SHA"
+          docker push "$image:$APP_SHA"
+          digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$image:$APP_SHA")
+          test -n "$digest"
+          echo "image=$digest" >> "$GITHUB_OUTPUT"
+          echo "Published $digest" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-staging:
+    needs: publish-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: staging-deployment
+      cancel-in-progress: false
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
+      STAGING_URL: ${{ vars.STAGING_URL }}
+      DEPLOY_IMAGE: ${{ needs.publish-image.outputs.image }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: staging-application-${{ github.event.workflow_run.head_sha }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate staging configuration
+        run: |
+          test -n "$RENDER_API_KEY" || { echo 'Missing staging secret RENDER_API_KEY'; exit 1; }
+          [[ "$RENDER_SERVICE_ID" == srv-* ]] || { echo 'Missing or invalid RENDER_SERVICE_ID'; exit 1; }
+          [[ "$STAGING_URL" == https://* ]] || { echo 'STAGING_URL must use HTTPS'; exit 1; }
+          mkdir -p deployment-evidence
+      - name: Deploy immutable image and await Render result
+        run: |
+          set -euo pipefail
+          api="https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys"
+          payload=$(jq -n --arg image "$DEPLOY_IMAGE" '{imageUrl:$image}')
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer $RENDER_API_KEY" -H 'Content-Type: application/json' \
+            --data "$payload" "$api" > deployment-evidence/deploy.json
+          deploy_id=$(jq -er '.id' deployment-evidence/deploy.json)
+          echo "Render deployment: $deploy_id; image: $DEPLOY_IMAGE"
+          for attempt in $(seq 1 80); do
+            curl --fail-with-body --silent --show-error --retry 3 --max-time 30 \
+              -H "Authorization: Bearer $RENDER_API_KEY" "$api/$deploy_id" \
+              > deployment-evidence/deploy-status.json
+            status=$(jq -er '.status' deployment-evidence/deploy-status.json)
+            echo "Attempt $attempt: $status" | tee -a deployment-evidence/render-status.log
+            case "$status" in
+              live) exit 0 ;;
+              *_failed|canceled|deactivated) echo 'Render deployment failed'; exit 1 ;;
+              created|queued|build_in_progress|pre_deploy_in_progress|update_in_progress) ;;
+              *) echo "Unexpected Render deployment status: $status"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo 'Render deployment timed out'; exit 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Smoke-test the deployed revision
+        run: |
+          set -o pipefail
+          python artifact-smoke-test.py "$STAGING_URL" "$APP_SHA" 2>&1 | tee deployment-evidence/smoke-tests.log
+          printf 'Revision: %s\nImage: %s\nURL: %s\nRun: %s/%s/actions/runs/%s\n' \
+            "$APP_SHA" "$DEPLOY_IMAGE" "$STAGING_URL" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" \
+            | tee deployment-evidence/summary.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve deployment diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-${{ github.event.workflow_run.head_sha }}-${{ github.run_attempt }}
+          path: deployment-evidence/
+          retention-days: 30
+          if-no-files-found: warn

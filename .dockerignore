@@ -4,3 +4,4 @@
 !requirements-staging.txt
 !app.py
 !calculator.py
+!requirements-staging.lock

@@ -28,13 +28,23 @@ Download artifact -> verify SHA-256 -> load the image -> publish to GHCR ->
 deploy the immutable registry digest to Render -> wait for live status ->
 smoke-test the deployed commit -> preserve deployment evidence.
 
-The configuration is `.github/workflows/ci.yml`. The existing `build-and-test`
-job name is retained. Feature branches and PRs build an artifact but never deploy.
+CI is configured in `.github/workflows/ci.yml`; delivery is configured separately
+in `.github/workflows/cd.yml`. The existing `build-and-test` job name is retained.
+Feature branches and PRs run CI and build an artifact. Delivery is triggered only
+by a completed main CI run, and proceeds only when that run succeeded and came
+from a push to main in this repository. It downloads the artifact by that exact
+CI run ID and uses that run's commit SHA. PRs have no delivery jobs to skip.
 Review and protected-branch checks remain in place; an approved merge is manual.
 The scanner explicitly waits for the configured SonarCloud quality gate on
 `main`. Branch and PR scans retain the existing scan behavior: this SonarCloud
 organization rejects synchronous gate-status queries for non-main branches.
 No gate or required check is removed or relaxed.
+
+The container uses `requirements-staging.lock`, which pins every resolved runtime
+dependency and its wheel SHA-256 hash for Linux amd64 / Python 3.14. Installation
+uses `--only-binary=:all:` and `--require-hashes`, so source setup scripts cannot
+execute and modified or unlisted packages are rejected. Refresh the lock when
+intentionally updating runtime dependencies, then verify CI and the image again.
 
 `staging-application-<commit>` contains `application.tar`, its SHA-256 checksum,
 and the smoke-test script from the same commit. Upload/download use GitHub's
@@ -65,7 +75,8 @@ repository or environment protections. These setup actions belong to the owner.
 2. In repository Settings -> Environments, create/select `staging`. Preserve
    existing protection settings. Configure deployment branches to permit `main`
    only if setting up this new environment; approval rules are the owner's choice.
-3. The first `main` run builds and publishes the package. Deployment will fail
+3. The first `main` CI run builds the artifact; the subsequent Staging Deployment
+   workflow publishes the package. Deployment will fail
    clearly until hosting configuration is provided. Open the GitHub profile's
    Packages page, select `itsd-4350-git-workflow-staging`, and make that package
    Public so Render can pull it without a private-registry token. This is an
@@ -85,7 +96,8 @@ repository or environment protections. These setup actions belong to the owner.
 7. Create a Render API key in Render Account Settings -> API Keys. Store it as
    GitHub environment secret `RENDER_API_KEY` under `staging`. Keep the existing
    `SONAR_TOKEN` unchanged. Never include either token in evidence or ZIP files.
-8. Re-run the failed deployment job from the successful `main` workflow run.
+8. Re-run the failed job in the Staging Deployment workflow associated with the
+   successful `main` CI run.
    Approve the GitHub environment deployment if existing rules require it.
    The job must deploy and smoke-test successfully before submission is complete.
 
@@ -109,7 +121,8 @@ deployment ID to reach `live`, and fails on terminal errors or timeout.
 Smoke tests then require that exact revision, not just an HTTP 200 homepage.
 
 Inspect GitHub job logs and the `deployment-evidence-<commit>-<attempt>` artifact
-when deployment fails. Render's service Events and Logs explain startup failures.
+when deployment fails. The Staging Deployment workflow is separate from the CI
+workflow; inspect both. Render's service Events and Logs explain startup failures.
 A post-deploy smoke failure marks the workflow failed but does not automatically
 roll back; the owner can redeploy a previously verified digest after diagnosis.
 Do not remove checks, change gates, or expose secrets to obtain a passing run.
