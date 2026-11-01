@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!requirements.txt
+!requirements-staging.txt
+!app.py
+!calculator.py

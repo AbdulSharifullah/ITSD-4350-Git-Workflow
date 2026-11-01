@@ -8,6 +8,19 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
 csrf = CSRFProtect(app)
 
+if os.environ.get("APP_ENV") == "staging":
+    if not app.config["SECRET_KEY"]:
+        raise RuntimeError("Staging requires SECRET_KEY")
+    app.config.update(SESSION_COOKIE_SECURE=True,
+                      SESSION_COOKIE_HTTPONLY=True,
+                      SESSION_COOKIE_SAMESITE="Lax")
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok",
+            "revision": os.environ.get("APP_REVISION", "local")}
+
 
 @app.route("/", methods=["GET"])
 def home():
