@@ -6,11 +6,12 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   build-and-test:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
 
     steps:
@@ -47,6 +48,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   build-artifact:
+    permissions:
+      contents: read
     needs: build-and-test
     runs-on: ubuntu-latest
     steps:
