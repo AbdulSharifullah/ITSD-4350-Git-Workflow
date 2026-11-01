@@ -6,8 +6,12 @@ on:
     branches:
       - main
 
+permissions: {}
+
 jobs:
   build-and-test:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
 
     steps:
@@ -28,7 +32,7 @@ jobs:
           pip install --only-binary=:all: pytest==8.4.2 pytest-cov==7.0.0 flake8==7.3.0
 
       - name: Run Flake8
-        run: flake8 calculator.py test_calculator.py app.py
+        run: flake8 calculator.py test_calculator.py app.py test_app.py smoke_test.py test_deployment.py
 
       - name: Run tests with coverage
         run: pytest --cov=. --cov-report=xml
@@ -38,5 +42,31 @@ jobs:
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
+        with:
+          args: -Dsonar.qualitygate.wait=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  build-artifact:
+    permissions:
+      contents: read
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the validated revision once
+        run: |
+          docker build --platform linux/amd64 --build-arg APP_REVISION="$GITHUB_SHA" -t calculator:$GITHUB_SHA .
+          docker save calculator:$GITHUB_SHA -o application.tar
+          sha256sum application.tar > application.tar.sha256
+          cp smoke_test.py artifact-smoke-test.py
+      - name: Upload reusable application image and verifier
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-application-${{ github.sha }}
+          path: |
+            application.tar
+            application.tar.sha256
+            artifact-smoke-test.py
+          retention-days: 14
+          if-no-files-found: error
