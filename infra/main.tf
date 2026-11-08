@@ -1,5 +1,5 @@
 locals {
-  name   = "itsd-4350-${var.environment}"
+  name = "itsd-4350-${var.environment}"
   labels = {
     project     = "itsd-4350-mini-project-2-2"
     environment = var.environment
