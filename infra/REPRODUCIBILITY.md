@@ -90,3 +90,18 @@ snapshots and TLS connection diagnostics make future failures easier to inspect.
 The correction uses the separate `fix/staging-runner-connectivity` branch and
 the same protected PR review process. The successful lifecycle report remains
 the required evidence for final acceptance.
+
+## Second real run: functional tests passed; resource default corrected
+
+After PR #11 was independently approved and merged at `8bf0bbd`, manual
+[run 42518016996](https://github.com/AbdulSharifullah/ITSD-4350-Git-Workflow/actions/runs/42518016996)
+created all three resources and passed certificate-verified HTTPS, the exact
+revision check, `5 + 3 = 8`, invalid-input rejection, CSRF rejection, blocked
+external egress, and the same application checks after a real container restart.
+
+The no-drift plan then correctly returned exit code 2: Docker had populated
+`memory_swap = 512` from the 256 MB memory limit, while the configuration left
+swap unspecified. Rather than ignoring that difference or weakening the check,
+the correction explicitly declares Docker's observed 512 MB combined memory/swap
+limit. The always-run cleanup removed all three resources. The final successful
+report must still demonstrate destruction followed by recreation.
