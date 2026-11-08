@@ -66,7 +66,7 @@ assert_absent() {
   if docker image inspect "$image" >/dev/null 2>&1; then
     echo 'FAIL: application image still exists'; return 1
   fi
-  test -z "$(tf state list)"
+  [[ -z "$(tf state list)" ]]
   echo 'PASS: container, dedicated network, application image and managed state resources removed.'
 }
 
@@ -97,8 +97,8 @@ record tf plan -input=false -out=staging.tfplan
 name=apply
 record tf apply -input=false -auto-approve staging.tfplan
 verify
-test "$initial_container" != "$(tf output -raw container_id)"
-test "$initial_network" != "$(tf output -raw network_id)"
+[[ "$initial_container" != "$(tf output -raw container_id)" ]]
+[[ "$initial_network" != "$(tf output -raw network_id)" ]]
 name=no-drift
 record tf plan -input=false -detailed-exitcode
 
