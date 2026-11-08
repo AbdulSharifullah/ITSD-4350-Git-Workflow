@@ -7,14 +7,14 @@ flowchart TB
     subgraph R[Ephemeral GitHub-hosted Ubuntu 24.04 runner]
         T[Terraform 1.13.5<br/>Docker provider]
         S[Local Terraform state<br/>job lifetime only; never uploaded]
-        X[Existing smoke test<br/>trusted localhost certificate]
+        X[Existing smoke test<br/>trusted private-IP certificate]
         subgraph N[Dedicated internal Docker bridge<br/>172.28.22.0/24 default; no direct internet routing]
             C[Flask calculator + Gunicorn HTTPS<br/>non-root container; no database]
         end
         T --> S
         T -->|build and provision| C
         T -->|create network| N
-        X -->|127.0.0.1:8443 → container:10000| C
+        X -->|private bridge route to 172.28.22.2:10000| C
     end
     M --> T
     T --> D[Apply → test → destroy → verify removal<br/>recreate → test → final cleanup]

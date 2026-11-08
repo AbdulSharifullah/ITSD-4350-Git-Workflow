@@ -1,6 +1,6 @@
 output "staging_url" {
   description = "Accessible inside this runner only, while the container exists."
-  value       = "https://localhost:${var.host_port}"
+  value       = "https://${cidrhost(var.network_cidr, 2)}:${var.app_port}"
 }
 
 output "container_id" {
