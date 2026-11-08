@@ -99,6 +99,8 @@ record tf apply -input=false -auto-approve staging.tfplan
 verify
 [[ "$initial_container" != "$(tf output -raw container_id)" ]]
 [[ "$initial_network" != "$(tf output -raw network_id)" ]]
+recreated_container=$(tf output -raw container_id)
+recreated_network=$(tf output -raw network_id)
 name=no-drift
 record tf plan -input=false -detailed-exitcode
 
@@ -113,3 +115,66 @@ record assert_absent "$final_container" "$final_network" "$final_image"
 printf 'PASS: apply, HTTPS calculator tests, restart, no drift, destroy, absence, recreate, repeat tests, final cleanup.\nRevision: %s\nRun: %s/%s/actions/runs/%s\n' \
   "$TF_VAR_app_revision" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" \
   | tee infra/evidence/result.txt
+
+# Write a results report only after every mandatory lifecycle check succeeded.
+cat > infra/evidence/REPRODUCIBILITY-RESULTS.md <<EOF
+# Mini Project 2.2 — verified reproducibility report
+
+Executed: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+Revision: $TF_VAR_app_revision
+
+Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+## Observed results
+
+The committed Terraform configuration provisioned the real Flask application
+image, container, and internal network. HTTPS verification passed for health,
+the exact Git revision, addition (5 + 3 = 8), rejection of invalid input, and CSRF
+protection. Both deployments recovered after a real container restart.
+
+| Resource | Initial deployment | Recreated deployment |
+|---|---|---|
+| Container ID | $initial_container | $recreated_container |
+| Network ID | $initial_network | $recreated_network |
+
+Both container and network IDs changed, proving that new resources were created.
+The first destroy operation removed the recorded container, network, application
+image, and all managed state entries before recreation began. Both deployments
+passed no-drift plans with exit code 0. Final cleanup removed the recreated
+environment and was verified by Docker inspection and an empty Terraform state.
+
+Networking checks confirmed loopback-only HTTPS publication and an internal
+Docker network. An actual direct external TCP connection failed as expected.
+The container ran as the existing non-root UID with a read-only root filesystem.
+
+## Commands and evidence
+
+The workflow initialized and validated Terraform, then ran infra/demonstrate.sh.
+That script used terraform plan/apply, the existing smoke_test.py over HTTPS,
+Docker inspection and restart, a destroy plan/apply, and a second plan/apply/test
+cycle followed by terraform destroy. Exact command output is in lifecycle.log
+and the stage-specific logs. Safe resource snapshots, health responses and the
+actual calculator HTML are included for both deployments.
+
+Expected behavior was equivalent application functionality after replacement;
+the observed tests confirmed it. Reusing a running container could not satisfy
+the recorded removal and changed-ID assertions. No state or private keys were
+uploaded. Earlier implementation issues and corrections are documented in
+infra/REPRODUCIBILITY.md in the repository; this successful run's logs are the
+evidence for the final configuration. GitHub retains separate logs for any
+unsuccessful earlier runs.
+
+## Reflection and limitations
+
+Terraform made the image, container and network reproducible from reviewed code.
+No-change plans checked for drift, while Git review and automated execution
+reduced dependence on manual setup. The test demonstrated recovery of the
+application and its network from code after actual destruction.
+
+This is temporary integration staging inside a GitHub-hosted runner. It ends
+with the job and is not a persistent public site; the existing Render deployment
+is preserved. No AWS resources or local infrastructure installations were used.
+The existing floating Python base image could change during a future rebuild;
+pinning its digest would improve longer-term reproducibility.
+EOF

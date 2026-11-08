@@ -173,9 +173,12 @@ long-term reproducibility but is outside this change's application scope.
 
 ## Evidence status
 
-See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for current verified results and the
-workflow links. Do not describe the assignment as complete until its real
-lifecycle run and required PR review have succeeded.
+See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the baseline, verification
+procedure and initial workflow links. A successful lifecycle artifact contains
+`REPRODUCIBILITY-RESULTS.md`, generated from that run's observed IDs and tests.
+That generated report records the actual demonstration outcome. Do not describe
+the assignment as complete until its lifecycle run and required PR review have
+succeeded.
 
 ## References
 
