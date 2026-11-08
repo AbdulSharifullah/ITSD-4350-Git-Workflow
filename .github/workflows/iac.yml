@@ -26,8 +26,6 @@ jobs:
   validate:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    env:
-      TF_VAR_runtime_dir: ${{ runner.temp }}/calculator-runtime
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,6 +40,7 @@ jobs:
           set -euo pipefail
           mkdir -p infra/evidence
           export TF_VAR_app_revision=$(git rev-parse HEAD)
+          export TF_VAR_runtime_dir="$RUNNER_TEMP/calculator-runtime"
           terraform -chdir=infra fmt -check -diff 2>&1 | tee infra/evidence/format.log
           terraform -chdir=infra init -input=false 2>&1 | tee infra/evidence/init.log
           terraform -chdir=infra validate -no-color 2>&1 | tee infra/evidence/validate.log
@@ -63,7 +62,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      TF_VAR_runtime_dir: ${{ runner.temp }}/calculator-runtime
       TF_VAR_environment: staging
     steps:
       - uses: actions/checkout@v4
@@ -81,6 +79,8 @@ jobs:
         run: |
           set -euo pipefail
           echo "TF_VAR_app_revision=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          export TF_VAR_runtime_dir="$RUNNER_TEMP/calculator-runtime"
+          echo "TF_VAR_runtime_dir=$TF_VAR_runtime_dir" >> "$GITHUB_ENV"
           mkdir -p infra/evidence
           { date -u; git rev-parse HEAD; terraform version; docker version; } > infra/evidence/tool-versions.txt
           bash infra/prepare-runtime.sh
