@@ -1,0 +1,6 @@
+environment  = "staging"
+network_cidr = "172.28.22.0/24"
+host_port    = 8443
+app_port     = 10000
+# The workflow sets app_revision from git and runtime_dir from RUNNER_TEMP.
+# For an existing Linux Docker host, set both using TF_VAR_* environment variables.

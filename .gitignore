@@ -5,3 +5,12 @@ __pycache__/
 coverage.xml
 .scannerwork/
 *.tar
+
+# Mini Project 2.2: runtime data never belongs in Git.
+infra/.terraform/
+infra/*.tfstate*
+infra/*.tfplan
+infra/*.tfvars
+infra/crash*.log
+infra/evidence/
+infra/runtime/
