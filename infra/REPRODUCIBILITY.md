@@ -23,7 +23,7 @@ through `infra/demonstrate.sh`:
 
 1. Save a plan, apply it, and record image/container/network outputs.
 2. Run the repository's existing HTTPS smoke test and save health/form responses.
-3. Verify loopback-only publishing, internal networking, blocked direct egress,
+3. Verify no published host ports, internal networking, blocked direct egress,
    and recovery after a container restart.
 4. Require a no-drift plan (exit code 0).
 5. Save and apply a destroy plan. Query Docker by the recorded IDs and Terraform
@@ -68,3 +68,25 @@ and the shell conditional findings were corrected. The existing scanner and
 quality gate were preserved. Terraform's mixed-case `TF_VAR_<variable>` naming
 is required to match the declared variable names, despite the generic naming
 convention advice from the GitHub Actions analyzer.
+
+## First real provisioning run and correction
+
+After PR #10 was independently approved and merged at `c18a02a`, manual
+[run 42517269403](https://github.com/AbdulSharifullah/ITSD-4350-Git-Workflow/actions/runs/42517269403)
+successfully created all three resources. Gunicorn logged that it was listening
+on HTTPS port 10000, but the client could not reach the requested localhost
+published port on the internal Docker network. The smoke test failed; no
+recreation success was claimed. The always-run cleanup destroyed all three
+resources, and diagnostics were preserved in artifact
+`terraform-lifecycle-42517269403-1`.
+
+The correction retains network isolation and removes host port publication.
+The runner connects directly to the private bridge address, parameterized from
+the network CIDR. Its TLS certificate includes that exact private IP. The
+unused Gunicorn control socket is disabled because its default path attempted
+to write to the read-only root filesystem. This does not disable HTTPS, secure
+cookies, CSRF, network isolation, or read-only root protection. Early safe
+snapshots and TLS connection diagnostics make future failures easier to inspect.
+The correction uses the separate `fix/staging-runner-connectivity` branch and
+the same protected PR review process. The successful lifecycle report remains
+the required evidence for final acceptance.

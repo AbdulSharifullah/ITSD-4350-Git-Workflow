@@ -78,14 +78,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "TF_VAR_app_revision=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          export TF_VAR_app_revision=$(git rev-parse HEAD)
+          echo "TF_VAR_app_revision=$TF_VAR_app_revision" >> "$GITHUB_ENV"
           export TF_VAR_runtime_dir="$RUNNER_TEMP/calculator-runtime"
           echo "TF_VAR_runtime_dir=$TF_VAR_runtime_dir" >> "$GITHUB_ENV"
           mkdir -p infra/evidence
           { date -u; git rev-parse HEAD; terraform version; docker version; } > infra/evidence/tool-versions.txt
-          bash infra/prepare-runtime.sh
           terraform -chdir=infra init -input=false -lockfile=readonly
           terraform -chdir=infra validate
+          bash infra/prepare-runtime.sh
       - name: Provision, verify, destroy, recreate, verify and clean up
         shell: bash
         run: |

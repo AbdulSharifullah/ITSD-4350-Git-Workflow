@@ -51,7 +51,7 @@ resource "docker_container" "calculator" {
   # Read the generated session key at runtime, keeping it out of Terraform state.
   command = [
     "sh", "-c",
-    "set -a; . /run/staging/runtime.env; exec gunicorn --bind 0.0.0.0:$PORT --workers 2 --certfile /run/staging/server.crt --keyfile /run/staging/server.key --access-logfile - --error-logfile - app:app",
+    "set -a; . /run/staging/runtime.env; exec gunicorn --bind 0.0.0.0:$PORT --workers 2 --no-control-socket --certfile /run/staging/server.crt --keyfile /run/staging/server.key --access-logfile - --error-logfile - app:app",
   ]
   capabilities {
     drop = ["ALL"]
@@ -66,13 +66,8 @@ resource "docker_container" "calculator" {
     read_only      = true
   }
   networks_advanced {
-    name = docker_network.staging.name
-  }
-  ports {
-    internal = var.app_port
-    external = var.host_port
-    ip       = "127.0.0.1"
-    protocol = "tcp"
+    name         = docker_network.staging.name
+    ipv4_address = cidrhost(var.network_cidr, 2)
   }
   dynamic "labels" {
     for_each = local.labels

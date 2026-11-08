@@ -29,16 +29,6 @@ variable "network_cidr" {
   }
 }
 
-variable "host_port" {
-  description = "HTTPS port published on runner loopback only."
-  type        = number
-  default     = 8443
-  validation {
-    condition     = var.host_port >= 1024 && var.host_port <= 65535 && floor(var.host_port) == var.host_port
-    error_message = "Use an integer port from 1024 through 65535."
-  }
-}
-
 variable "app_port" {
   description = "Unprivileged Gunicorn HTTPS port inside the container."
   type        = number

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1100" height="760" viewBox="0 0 1100 760" role="img" aria-labelledby="title desc">
 <title id="title">Mini Project 2.2: Terraform staging on a GitHub-hosted runner</title>
-<desc id="desc">A manually triggered workflow provisions a real Flask container and internal Docker network, tests localhost HTTPS, destroys and recreates staging, and saves evidence before final cleanup.</desc>
+<desc id="desc">A manually triggered workflow provisions a real Flask container and internal Docker network, tests private-address HTTPS, destroys and recreates staging, and saves evidence before final cleanup.</desc>
 <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#334155"/></marker></defs>
 <rect width="1100" height="760" fill="#f8fafc"/>
 <g font-family="Segoe UI,Arial,sans-serif" text-anchor="middle" fill="#0f172a">
@@ -32,5 +32,5 @@
 <path d="M435 115 H665" stroke-dasharray="6 5"/><path d="M235 160 V190"/><path d="M435 145 L665 215"/><path d="M865 270 V310"/>
 <path d="M345 410 H590"/><path d="M345 532 H630"/><path d="M550 610 V645"/><path d="M630 685 H680"/>
 </g>
-<g font-family="Segoe UI,Arial,sans-serif" text-anchor="middle" fill="#334155" font-size="13"><text x="466" y="398">build + provision</text><text x="487" y="518">127.0.0.1:8443 HTTPS</text></g>
+<g font-family="Segoe UI,Arial,sans-serif" text-anchor="middle" fill="#334155" font-size="13"><text x="466" y="398">build + provision</text><text x="487" y="518">private bridge HTTPS</text></g>
 </svg>

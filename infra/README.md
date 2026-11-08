@@ -31,15 +31,15 @@ serves HTTPS directly, avoiding an extra proxy container. The container restarts
 automatically while the Docker host exists. A real container restart is tested.
 This does not simulate a host reboot.
 
-Networking rules are explicit: publish only one TCP port on `127.0.0.1`, attach
-the container to the dedicated subnet, and mark that network internal to block
-direct external routing. No SSH, public listener, remote Docker socket, or cloud
-firewall is needed. Both the bindings and an actual outbound connection attempt
-are tested. Package downloads occur during the image build, before runtime
+Networking rules are explicit: attach the container only to its dedicated
+internal subnet, publish no host ports, and block direct external routing. The
+runner tests HTTPS through the private bridge address (default 172.28.22.2:10000).
+No SSH, public listener, remote Docker socket, or cloud firewall is needed. The
+absence of published ports and an actual outbound connection attempt are tested. Package downloads occur during the image build, before runtime
 network isolation is applied. The application runs with a read-only root
 filesystem, a writable temporary directory, and dropped Linux capabilities.
 
-The job generates a one-day self-signed localhost certificate and a random Flask
+The job generates a one-day self-signed private-address certificate and a random Flask
 session key outside the repository. Private files are readable only by the
 container's UID and mounted read-only. The test client explicitly trusts that
 certificate; certificate verification and secure cookies stay enabled. These
@@ -51,8 +51,8 @@ files are not Terraform variables, state values, source files, or artifacts.
 |---|---|
 | Approved IaC tool | Terraform 1.13.5 and pinned Docker provider |
 | Application server | Actual Flask/Gunicorn Linux container, built from this repository |
-| Networking and security | Dedicated internal subnet, loopback-only HTTPS binding; inspect and egress tests |
-| Parameterization | Environment, commit, subnet, host/container ports, runtime path; validated inputs |
+| Networking and security | Dedicated internal subnet, no published host ports; private HTTPS and egress tests |
+| Parameterization | Environment, commit, subnet, application port, runtime path; validated inputs |
 | Modularity | Separate provider, version, resource, variable and output files in one Terraform root module |
 | Version control | `feature/staging-terraform-iac`, conventional commits, reviewed PR into protected `main` |
 | CD integration | New `Terraform Staging` workflow; existing application CI and Render CD retained |
@@ -115,19 +115,19 @@ available** Linux host with Docker Engine, Terraform 1.13.x, Python 3, OpenSSL,
 ```bash
 export TF_VAR_app_revision=$(git rev-parse HEAD)
 export TF_VAR_runtime_dir=$(mktemp -d)
-bash infra/prepare-runtime.sh
 terraform -chdir=infra init
+bash infra/prepare-runtime.sh
 terraform -chdir=infra fmt -check
 terraform -chdir=infra validate
 terraform -chdir=infra plan
 terraform -chdir=infra apply
 SSL_CERT_FILE="$TF_VAR_runtime_dir/server.crt" \
-  python smoke_test.py https://localhost:8443 "$TF_VAR_app_revision"
+  python smoke_test.py "$(terraform -chdir=infra output -raw staging_url)" "$TF_VAR_app_revision"
 terraform -chdir=infra destroy
 ```
 
 `terraform.tfvars.example` shows optional overrides. Export `TF_VAR_environment`,
-`TF_VAR_network_cidr`, `TF_VAR_host_port`, or `TF_VAR_app_port`, or copy the example
+`TF_VAR_network_cidr` or `TF_VAR_app_port`, or copy the example
 to an ignored `.tfvars` file. Keep app revision equal to the actual checkout.
 Use a non-overlapping private subnet. Outputs expose the URL and resource IDs.
 Runtime files must remain available until destruction. On a persistent Linux

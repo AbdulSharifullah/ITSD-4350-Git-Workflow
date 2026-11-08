@@ -33,6 +33,11 @@ verify() {
   container=$(tf output -raw container_id)
   network=$(tf output -raw network_id)
   url=$(tf output -raw staging_url)
+  snapshot
+  name=tls-connection
+  record curl --verbose --connect-timeout 3 --max-time 10 \
+    --retry 5 --retry-connrefused --retry-delay 2 \
+    --cacert "$SSL_CERT_FILE" "$url/health"
   name=smoke-test
   record python smoke_test.py "$url" "$TF_VAR_app_revision" --attempts 12
   curl --fail --silent --show-error --cacert "$SSL_CERT_FILE" \
@@ -42,7 +47,8 @@ verify() {
   docker inspect "$container" | jq -e '.[0] |
     .State.Running == true and .Config.User == "10001:10001" and
     .HostConfig.ReadonlyRootfs == true and
-    ([.HostConfig.PortBindings[][] | .HostIp] == ["127.0.0.1"])' >/dev/null
+    ((.HostConfig.PortBindings // {}) | length) == 0 and
+    (.NetworkSettings.Networks | length) == 1' >/dev/null
   docker network inspect "$network" | jq -e '.[0].Internal == true' >/dev/null
   # Exercise actual egress rather than relying solely on a configuration flag.
   docker exec "$container" python -c $'import socket\ntry:\n socket.create_connection(("1.1.1.1",443),timeout=3).close()\nexcept OSError:\n print("PASS: direct external TCP egress blocked")\nelse:\n raise SystemExit("FAIL: unexpected external TCP access")' \
@@ -52,7 +58,7 @@ verify() {
   name=after-restart
   record python smoke_test.py "$url" "$TF_VAR_app_revision" --attempts 12
   snapshot
-  echo "PASS: running non-root service; loopback-only HTTPS; internal network; restart verified."
+  echo "PASS: running non-root service; private HTTPS; no published ports; internal network; restart verified."
 }
 
 assert_absent() {
@@ -144,7 +150,7 @@ image, and all managed state entries before recreation began. Both deployments
 passed no-drift plans with exit code 0. Final cleanup removed the recreated
 environment and was verified by Docker inspection and an empty Terraform state.
 
-Networking checks confirmed loopback-only HTTPS publication and an internal
+Networking checks confirmed no published host ports and an internal
 Docker network. An actual direct external TCP connection failed as expected.
 The container ran as the existing non-root UID with a read-only root filesystem.
 
