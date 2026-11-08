@@ -1,0 +1,116 @@
+name: Terraform Staging
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['infra/**', '.github/workflows/iac.yml', 'Dockerfile', 'app.py', 'calculator.py', 'requirements-staging.lock', 'smoke_test.py']
+  push:
+    branches: [feature/staging-terraform-iac]
+    paths: ['infra/**', '.github/workflows/iac.yml']
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Create, test, destroy, recreate, retest and clean up runner-only staging'
+        required: true
+        type: choice
+        options: [recreate-and-cleanup]
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: 'true'
+  TF_INPUT: 'false'
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - name: Check formatting, initialize, validate and plan without provisioning
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p infra/evidence
+          export TF_VAR_app_revision=$(git rev-parse HEAD)
+          export TF_VAR_runtime_dir="$RUNNER_TEMP/calculator-runtime"
+          terraform -chdir=infra fmt -check -diff 2>&1 | tee infra/evidence/format.log
+          terraform -chdir=infra init -input=false -lockfile=readonly 2>&1 | tee infra/evidence/init.log
+          terraform -chdir=infra validate -no-color 2>&1 | tee infra/evidence/validate.log
+          terraform -chdir=infra plan -input=false -no-color 2>&1 | tee infra/evidence/plan.log
+          cp infra/.terraform.lock.hcl infra/evidence/provider-lock.hcl
+          for script in infra/prepare-runtime.sh infra/demonstrate.sh; do bash -n "$script"; done
+      - name: Preserve validation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: terraform-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: infra/evidence/
+          retention-days: 14
+          if-no-files-found: error
+
+  demonstrate:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirmation == 'recreate-and-cleanup'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      TF_VAR_environment: staging
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.14'
+      - name: Prepare isolated runner and validate configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "TF_VAR_app_revision=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          export TF_VAR_runtime_dir="$RUNNER_TEMP/calculator-runtime"
+          echo "TF_VAR_runtime_dir=$TF_VAR_runtime_dir" >> "$GITHUB_ENV"
+          mkdir -p infra/evidence
+          { date -u; git rev-parse HEAD; terraform version; docker version; } > infra/evidence/tool-versions.txt
+          bash infra/prepare-runtime.sh
+          terraform -chdir=infra init -input=false -lockfile=readonly
+          terraform -chdir=infra validate
+      - name: Provision, verify, destroy, recreate, verify and clean up
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash infra/demonstrate.sh 2>&1 | tee infra/evidence/lifecycle.log
+          cat infra/evidence/result.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Capture diagnostics and ensure cleanup even after failure
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p infra/evidence
+          if docker container inspect itsd-4350-staging >/dev/null 2>&1; then
+            docker logs itsd-4350-staging > infra/evidence/final-diagnostics.log 2>&1 || true
+          fi
+          if [[ -d infra/.terraform ]]; then
+            terraform -chdir=infra destroy -input=false -auto-approve -no-color 2>&1 | tee infra/evidence/always-cleanup.log
+          fi
+          [[ -z "$(docker ps -aq --filter label=project=itsd-4350-mini-project-2-2)" ]]
+          [[ -z "$(docker network ls -q --filter label=project=itsd-4350-mini-project-2-2)" ]]
+      - name: Preserve genuine lifecycle evidence without state or secrets
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: terraform-lifecycle-${{ github.run_id }}-${{ github.run_attempt }}
+          path: infra/evidence/
+          retention-days: 14
+          if-no-files-found: error
