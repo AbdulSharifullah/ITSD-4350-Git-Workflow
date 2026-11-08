@@ -38,11 +38,12 @@ resource "docker_image" "calculator" {
 }
 
 resource "docker_container" "calculator" {
-  name      = local.name
-  image     = docker_image.calculator.image_id
-  restart   = "unless-stopped"
-  read_only = true
-  memory    = 256
+  name        = local.name
+  image       = docker_image.calculator.image_id
+  restart     = "unless-stopped"
+  read_only   = true
+  memory      = 256
+  memory_swap = 512
   env = [
     "APP_ENV=staging",
     "APP_REVISION=${var.app_revision}",
