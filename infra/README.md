@@ -97,6 +97,9 @@ deployment on an ephemeral runner. The always-run cleanup step retries Terraform
 destruction after failures, and GitHub discards the job VM afterward. A cleanup
 failure fails the job rather than being hidden.
 
+The provider dependency lock file is committed. Workflow initialization uses
+`-lockfile=readonly` so unexpected provider selection changes fail visibly.
+
 The three Terraform resources belong only to this project. Destruction uses its
 state, not global Docker pruning. The script verifies that the application image,
 container, network, and managed state entries are absent. Base-image layers and

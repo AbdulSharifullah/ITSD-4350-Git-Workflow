@@ -42,11 +42,11 @@ jobs:
           export TF_VAR_app_revision=$(git rev-parse HEAD)
           export TF_VAR_runtime_dir="$RUNNER_TEMP/calculator-runtime"
           terraform -chdir=infra fmt -check -diff 2>&1 | tee infra/evidence/format.log
-          terraform -chdir=infra init -input=false 2>&1 | tee infra/evidence/init.log
+          terraform -chdir=infra init -input=false -lockfile=readonly 2>&1 | tee infra/evidence/init.log
           terraform -chdir=infra validate -no-color 2>&1 | tee infra/evidence/validate.log
           terraform -chdir=infra plan -input=false -no-color 2>&1 | tee infra/evidence/plan.log
           cp infra/.terraform.lock.hcl infra/evidence/provider-lock.hcl
-          bash -n infra/prepare-runtime.sh infra/demonstrate.sh
+          for script in infra/prepare-runtime.sh infra/demonstrate.sh; do bash -n "$script"; done
       - name: Preserve validation evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -84,7 +84,7 @@ jobs:
           mkdir -p infra/evidence
           { date -u; git rev-parse HEAD; terraform version; docker version; } > infra/evidence/tool-versions.txt
           bash infra/prepare-runtime.sh
-          terraform -chdir=infra init -input=false
+          terraform -chdir=infra init -input=false -lockfile=readonly
           terraform -chdir=infra validate
       - name: Provision, verify, destroy, recreate, verify and clean up
         shell: bash

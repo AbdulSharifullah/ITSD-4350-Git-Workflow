@@ -38,8 +38,21 @@ an artifact's existence alone does not demonstrate success.
 
 ## Remaining verification checkpoint
 
-GitHub validation and the protected-branch review must complete before the
-manual lifecycle workflow can run on `main`. Actual run IDs, observed resource
-IDs, destruction/recreation results, final CI status, and any troubleshooting
-will be recorded after those steps execute. This file makes no claim that they
-have already passed.
+GitHub validation passed on feature commit `fa049284749cc4158f8ce7c856465f0384d84c4a`:
+
+- [PR validation run 42516490444](https://github.com/AbdulSharifullah/ITSD-4350-Git-Workflow/actions/runs/42516490444):
+  formatting check, Terraform initialization, validation and plan passed.
+- The real plan reported **3 to add, 0 to change, 0 to destroy**: application
+  image, container, and dedicated network. It did not create those resources.
+- Validation artifact `terraform-validation-42516490444-1` was downloaded and
+  inspected. Its generated provider lock file was added to version control.
+- Initial workflow setup used a runner context at a level where GitHub did not
+  support it. Moving temporary-path setup into the shell step fixed the workflow.
+  A formatting check then identified one spacing difference, which was corrected
+  before the successful validation. No check was disabled.
+
+[PR #10](https://github.com/AbdulSharifullah/ITSD-4350-Git-Workflow/pull/10) requires
+the owner's second-account review before merging. The manual lifecycle workflow
+can then run on `main`. Actual resource IDs, destruction/recreation results,
+final CI status, and further troubleshooting will be recorded after execution.
+This file makes no claim that the lifecycle has already passed.
