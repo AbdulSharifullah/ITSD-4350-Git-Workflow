@@ -96,7 +96,8 @@ def test_stateful_lifecycle_preserves_previous_slot(monkeypatch, tmp_path):
     assert 'blue:10000' in (tmp_path / 'nginx/default.conf').read_text()
     assert commands.count(('up', '-d', '--no-deps', 'blue')) == 1
     assert ('up', '-d', '--no-deps', '--force-recreate', 'green') in commands
-    assert ('endpoint', 'old') in validations and ('endpoint', 'new') in validations
+    assert ('endpoint', 'old') in validations
+    assert ('endpoint', 'new') in validations
 
 
 def test_rollback_without_previous_slot(monkeypatch):
