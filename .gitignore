@@ -14,3 +14,5 @@ infra/*.tfvars
 infra/crash*.log
 infra/evidence/
 infra/runtime/
+bluegreen/runtime/
+bluegreen/evidence/
