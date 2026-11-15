@@ -47,6 +47,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      packages: read
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.approve_promotion == true
     needs: validate
     runs-on: ubuntu-24.04
@@ -80,13 +81,20 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_RUN_ID" > "$RUNNER_TEMP/staging.json"
           jq -e --arg sha "$GITHUB_SHA" '.conclusion == "success" and .head_sha == $sha and .head_branch == "main" and .path == ".github/workflows/cd.yml"' "$RUNNER_TEMP/staging.json"
           jq '{id,html_url,head_sha,conclusion,path}' "$RUNNER_TEMP/staging.json" > bluegreen/evidence/staging-provenance.json
-          ci_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push&status=success" --jq '.workflow_runs[0].id')
-          [[ "$ci_id" =~ ^[0-9]+$ ]]
-          gh run download "$ci_id" -R "$GITHUB_REPOSITORY" -n "staging-application-$GITHUB_SHA" -D "$RUNNER_TEMP/application-artifact"
-          (cd "$RUNNER_TEMP/application-artifact" && sha256sum -c application.tar.sha256 && docker load -i application.tar)
+          attempt=$(jq -er '.run_attempt' "$RUNNER_TEMP/staging.json")
+          gh run download "$STAGING_RUN_ID" -R "$GITHUB_REPOSITORY" -n "deployment-evidence-$GITHUB_SHA-$attempt" -D "$RUNNER_TEMP/application-artifact"
+          image=$(sed -n 's/^Image: //p' "$RUNNER_TEMP/application-artifact/summary.txt")
+          prefix="ghcr.io/${GITHUB_REPOSITORY,,}-staging@sha256:"
+          [[ "$image" == "$prefix"* ]]
+          digest="${image#"$prefix"}"
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker pull "$image"
+          docker tag "$image" "$GREEN_IMAGE"
           actual=$(docker image inspect "$GREEN_IMAGE" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^APP_REVISION=//p')
           [[ "$actual" == "$GITHUB_SHA" ]]
-          printf 'CI run: %s\nStaging run: %s\nGreen image ID: %s\n' "$ci_id" "$STAGING_RUN_ID" "$(docker image inspect "$GREEN_IMAGE" --format '{{.Id}}')" > bluegreen/evidence/image-provenance.txt
+          cp "$RUNNER_TEMP/application-artifact/summary.txt" bluegreen/evidence/staging-summary.txt
+          printf 'Staging run: %s\nExact staged image: %s\nGreen image ID: %s\n' "$STAGING_RUN_ID" "$image" "$(docker image inspect "$GREEN_IMAGE" --format '{{.Id}}')" > bluegreen/evidence/image-provenance.txt
           git archive "$BLUE_REVISION" | tar -x -C "$RUNNER_TEMP/blue-source"
           docker build --build-arg APP_REVISION="$BLUE_REVISION" -t "$BLUE_IMAGE" "$RUNNER_TEMP/blue-source"
       - name: Prepare genuine browser screenshots

@@ -24,10 +24,12 @@ Render staging and the Mini Project 2.2 Terraform configuration are unchanged.
 The validation job checks code and Compose syntax; it creates no application
 containers. The **demonstrate** job performs the entire deployment lifecycle on
 one Ubuntu runner. No container or deployment state is transferred between jobs.
-The run verifies staging success for the exact revision, downloads its CI image,
-checks the archive checksum and embedded revision, and loads the image without
-rebuilding Version 2. Blue is built from the pinned earlier source commit.
-Image identity, CI run and staging run are recorded in the evidence.
+The run verifies staging success for the exact revision, downloads that run's
+deployment summary, and pulls the exact registry digest recorded as deployed
+and tested there. It checks the embedded revision and runs that image without
+rebuilding Version 2. This preserves the image originally built by CI and
+published by the existing staging workflow. Blue is built from the pinned
+earlier source commit. Image identity and staging run are recorded in evidence.
 
 The controller initializes Blue, deploys and tests Green while Blue stays active,
 and proves a wrong live revision blocks promotion without changing routing.
