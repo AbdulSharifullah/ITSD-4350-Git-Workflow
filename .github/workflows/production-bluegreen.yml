@@ -16,12 +16,12 @@ on:
         required: true
         default: false
 
-permissions:
-  contents: read
-  actions: read
+permissions: {}
 
 jobs:
   validate:
+    permissions:
+      contents: read
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -36,7 +36,7 @@ jobs:
           GREEN_IMAGE: calculator:green
         run: |
           set -euo pipefail
-          pip install Flask==3.1.1 Flask-WTF==1.2.2 pytest==8.4.2 flake8==7.3.0
+          pip install --only-binary=:all: Flask==3.1.1 Flask-WTF==1.2.2 pytest==8.4.2 flake8==7.3.0
           python -m pytest -q
           flake8 bluegreen --max-line-length=100
           mkdir -p bluegreen/runtime
@@ -44,6 +44,9 @@ jobs:
           docker compose -f bluegreen/compose.yml config --quiet
 
   demonstrate:
+    permissions:
+      contents: read
+      actions: read
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.approve_promotion == true
     needs: validate
     runs-on: ubuntu-24.04
@@ -88,7 +91,7 @@ jobs:
           docker build --build-arg APP_REVISION="$BLUE_REVISION" -t "$BLUE_IMAGE" "$RUNNER_TEMP/blue-source"
       - name: Prepare genuine browser screenshots
         run: |
-          pip install playwright==1.56.0
+          pip install --only-binary=:all: playwright==1.56.0
           python -m playwright install --with-deps chromium
           python bluegreen/render_architecture.py
       - name: Execute complete approved demonstration on this runner

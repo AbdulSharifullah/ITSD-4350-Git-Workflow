@@ -34,7 +34,8 @@ def load():
 
 def save(state):
     temporary = STATE.with_suffix('.tmp')
-    temporary.write_text(json.dumps(state, indent=2))
+    with temporary.open('w', encoding='utf-8') as stream:
+        json.dump(state, stream, indent=2)
     temporary.replace(STATE)
 
 

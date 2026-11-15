@@ -67,3 +67,81 @@ def test_rollback_validates_before_state_commit(monkeypatch):
     monkeypatch.setattr(bg, 'save', unsafe)
     with pytest.raises(ValueError, match='unhealthy'):
         bg.rollback()
+
+
+def test_stateful_lifecycle_preserves_previous_slot(monkeypatch, tmp_path):
+    monkeypatch.setattr(bg, 'RUNTIME', tmp_path)
+    monkeypatch.setattr(bg, 'STATE', tmp_path / 'state.json')
+    commands, validations = [], []
+    monkeypatch.setattr(bg, 'compose', lambda *args: commands.append(args) or '')
+    monkeypatch.setattr(bg, 'validate', lambda *args, **kwargs: validations.append(args))
+    monkeypatch.setattr(bg, 'endpoint', lambda revision: validations.append(('endpoint', revision)))
+    bg.initialize('old')
+    assert bg.load()['active'] == 'blue'
+    assert 'SECRET_KEY=' in (tmp_path / 'app.env').read_text()
+    with pytest.raises(RuntimeError, match='Existing state'):
+        bg.initialize('old')
+    assert bg.deploy('new') == 'green'
+    assert bg.load()['active'] == 'blue'
+    with pytest.raises(RuntimeError, match='approved revision'):
+        bg.promote('wrong', True)
+    bg.promote('new', True)
+    assert bg.load()['active'] == 'green'
+    assert bg.load()['previous'] == 'blue'
+    assert 'green:10000' in (tmp_path / 'nginx/default.conf').read_text()
+    with pytest.raises(RuntimeError, match='retained for rollback'):
+        bg.deploy('third')
+    assert bg.rollback() >= 0
+    assert bg.load()['active'] == 'blue'
+    assert 'blue:10000' in (tmp_path / 'nginx/default.conf').read_text()
+    assert commands.count(('up', '-d', '--no-deps', 'blue')) == 1
+    assert ('up', '-d', '--no-deps', '--force-recreate', 'green') in commands
+    assert ('endpoint', 'old') in validations and ('endpoint', 'new') in validations
+
+
+def test_rollback_without_previous_slot(monkeypatch):
+    monkeypatch.setattr(bg, 'load', lambda: {'previous': None})
+    with pytest.raises(RuntimeError, match='No previous'):
+        bg.rollback()
+
+
+def test_validation_retries_and_exhaustion(monkeypatch):
+    calls = []
+
+    def flaky(url, revision):
+        calls.append((url, revision))
+        if len(calls) < 2:
+            raise ValueError('Not ready')
+    monkeypatch.setattr(bg, 'verify', flaky)
+    monkeypatch.setattr(bg.time, 'sleep', lambda seconds: None)
+    bg.validate('green', 'new', attempts=2)
+    assert len(calls) == 2
+    calls.clear()
+    with pytest.raises(ValueError, match='Not ready'):
+        bg.validate('green', 'new', attempts=1)
+    calls.clear()
+    bg.endpoint('new')
+    assert calls[-1] == ('http://127.0.0.1:18080', 'new')
+
+
+@pytest.mark.parametrize('command,arguments,function', [
+    ('init', ['--revision', 'old'], 'initialize'),
+    ('deploy', ['--revision', 'new'], 'deploy'),
+    ('validate', ['--revision', 'new', '--color', 'green'], 'validate'),
+    ('promote', ['--revision', 'new', '--approve'], 'promote'),
+    ('rollback', [], 'rollback'),
+])
+def test_cli_dispatch(monkeypatch, command, arguments, function):
+    calls = []
+    monkeypatch.setattr(bg, function, lambda *args, **kwargs: calls.append((args, kwargs)))
+    monkeypatch.setattr(bg.sys, 'argv', ['manage.py', command, *arguments])
+    bg.main()
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('arguments', [['deploy'], ['validate', '--revision', 'new']])
+def test_cli_missing_arguments(monkeypatch, arguments):
+    monkeypatch.setattr(bg.sys, 'argv', ['manage.py', *arguments])
+    with pytest.raises(SystemExit) as result:
+        bg.main()
+    assert result.value.code == 2
