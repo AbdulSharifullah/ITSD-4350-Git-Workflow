@@ -43,8 +43,8 @@ jobs:
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker tag calculator:$APP_SHA "$image:$APP_SHA"
           docker push "$image:$APP_SHA"
-          digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$image:$APP_SHA")
-          test -n "$digest"
+          digest=$(docker image inspect "$image:$APP_SHA" | jq -er --arg prefix "$image@" '.[0].RepoDigests[] | select(startswith($prefix))')
+          [[ "$digest" == "$image@sha256:"* ]]
           echo "image=$digest" >> "$GITHUB_OUTPUT"
           echo "Published $digest" >> "$GITHUB_STEP_SUMMARY"
 
