@@ -1,0 +1,25 @@
+name: itsd4350-production-simulation
+x-app: &app
+  restart: unless-stopped
+  env_file: runtime/app.env
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [production]
+services:
+  blue:
+    <<: *app
+    image: ${BLUE_IMAGE:?Set BLUE_IMAGE}
+    ports: [127.0.0.1:18081:10000]
+  green:
+    <<: *app
+    image: ${GREEN_IMAGE:?Set GREEN_IMAGE}
+    ports: [127.0.0.1:18082:10000]
+  router:
+    image: nginx:1.28.0-alpine
+    ports: [127.0.0.1:18080:80]
+    volumes: [./runtime/nginx:/etc/nginx/conf.d:ro]
+    networks: [production]
+networks:
+  production: {}
