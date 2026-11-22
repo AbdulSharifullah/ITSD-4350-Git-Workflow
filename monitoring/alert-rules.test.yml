@@ -29,25 +29,40 @@ tests:
           - exp_labels:
               job: flask-app
               severity: critical
+            exp_annotations:
+              summary: Flask application scrape target is unavailable
+              description: Prometheus has failed to scrape the Flask application for at least one minute.
       - eval_time: 7m
         alertname: ReadinessCheckFailed
         exp_alerts:
           - exp_labels:
               job: flask-app
               severity: critical
+            exp_annotations:
+              summary: Flask application reports not ready
+              description: The application's readiness metric is zero.
       - eval_time: 7m
         alertname: ElevatedHttp5xxRate
         exp_alerts:
           - exp_labels:
               severity: warning
+            exp_annotations:
+              summary: HTTP 5xx rate exceeds 5 percent
+              description: More than five percent of application requests returned 5xx responses for two minutes.
       - eval_time: 7m
         alertname: ExcessiveRequestLatency
         exp_alerts:
           - exp_labels:
               severity: warning
+            exp_annotations:
+              summary: 95th percentile request latency exceeds 500 milliseconds
+              description: The 5 minute 95th percentile latency exceeded the staging threshold for two minutes.
       - eval_time: 7m
         alertname: DeploymentValidationFailed
         exp_alerts:
           - exp_labels:
               job: deployment-validation
               severity: critical
+            exp_annotations:
+              summary: Deployment validation failed
+              description: The release validation reporter exported a failed deployment-validation status.

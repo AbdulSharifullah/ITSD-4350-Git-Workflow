@@ -85,7 +85,7 @@ jobs:
           date -u +'%Y-%m-%dT%H:%M:%SZ' > monitoring-evidence/collected-at-utc.txt
           if [[ -f monitoring-validation.txt ]]; then
             python monitoring/collect_report.py --revision "$GITHUB_SHA" \
-              --alert-routing passed || true
+              --alert-routing passed
           fi
       - name: Upload genuine monitoring evidence
         if: always()
