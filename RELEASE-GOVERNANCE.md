@@ -22,6 +22,13 @@ confirms both notification routes reach their local test receivers. The
 promotion workflow checks this result and successful staging evidence before
 the protected environment approval.
 
+The pull-request report is collected from the isolated CI app, not from Render.
+On 2026-11-22, a read-only check of the configured `STAGING_URL`
+(`https://itsd-4350-staging.onrender.com`) returned HTTP 404 for both
+`/health/ready` and `/metrics`, so live monitoring of the candidate was not
+verified. The staging deployment workflow only runs after a successful push to
+`main`; no Render deployment was made during this review.
+
 ```mermaid
 flowchart TD
   A[Build and test] --> B[Deploy immutable image to staging]
@@ -45,12 +52,17 @@ candidate container. The previous color remains available for recovery during
 the drill.
 
 The existing workflow includes a manual dispatch and an explicit approval
-input. For a stronger gate, configure a GitHub Actions environment named
-`production-simulation` with required reviewers and attach it to the promotion job before
-merging the workflow update. The repository's environment settings are account
-owner controls and are not changed by a workflow file. Until required reviewers
-are configured and verified in repository settings, treat the dispatch input as
-a manual acknowledgment, not as an independently enforced reviewer gate.
+input. The promotion job references the `production-simulation` environment,
+but the repository currently has only a `staging` environment. Until required
+reviewers are configured, the dispatch input is only a manual acknowledgment,
+not an enforced reviewer gate.
+
+To enable the gate, open repository **Settings  Environments  New environment**,
+create `production-simulation`, select **Required reviewers**, add an
+independent reviewer, optionally enable **Prevent self-review**, and save the
+protection rules. Limit deployment branches to `main`. Confirm the new
+environment appears in the list before relying on it. Repository administrators
+configure this setting; a workflow file cannot create the reviewer rule.
 
 Before dispatching, the release operator checks that the run ID, candidate SHA,
 staging image digest, smoke-test evidence, and matching monitoring run are all
@@ -65,6 +77,8 @@ simulation. A rejected review or any failed validation blocks the job.
 - Readiness fails, `/metrics` is unavailable, or monitoring shows an active
   critical alert.
 - The selected image digest does not match the one tested in staging.
+- No successful staging run exists for the exact candidate revision, or the
+  matching monitoring-validation run is missing or failed.
 - A protected environment reviewer rejects the release.
 - Post-promotion health or calculator checks fail; restore the previous color.
 
