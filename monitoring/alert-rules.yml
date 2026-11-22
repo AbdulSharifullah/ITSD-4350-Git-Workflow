@@ -1,0 +1,50 @@
+groups:
+  - name: flask-application
+    rules:
+      - alert: ApplicationUnavailable
+        expr: up{job="flask-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Flask application scrape target is unavailable
+          description: Prometheus has failed to scrape the Flask application for at least one minute.
+
+      - alert: ReadinessCheckFailed
+        expr: app_readiness_status{job="flask-app"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: Flask application reports not ready
+          description: The application's readiness metric is zero.
+
+      - alert: ElevatedHttp5xxRate
+        expr: |
+          (sum(rate(http_requests_total{job="flask-app",status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="flask-app"}[5m])), 0.001)) > 0.05
+          and sum(rate(http_requests_total{job="flask-app"}[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: HTTP 5xx rate exceeds 5 percent
+          description: More than five percent of application requests returned 5xx responses for two minutes.
+
+      - alert: ExcessiveRequestLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="flask-app"}[5m]))) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 95th percentile request latency exceeds 500 milliseconds
+          description: The 5 minute 95th percentile latency exceeded the staging threshold for two minutes.
+
+      - alert: DeploymentValidationFailed
+        expr: deployment_validation_status{job="deployment-validation"} == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Deployment validation failed
+          description: The release validation reporter exported a failed deployment-validation status.
