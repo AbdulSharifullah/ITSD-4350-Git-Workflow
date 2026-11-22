@@ -9,6 +9,12 @@ then runs the calculator, CSRF, health, revision, and metrics smoke checks.
 Any failed deploy or smoke check fails the staging workflow and leaves no
 successful candidate for promotion.
 
+After those checks, the staging workflow runs Prometheus against the actual
+Render service for a short window. It records the observed process uptime,
+request counters, latency, error rate, readiness, revision match, and active
+critical alerts. A missing target, unhealthy readiness state, revision mismatch,
+or active critical alert fails the staging workflow.
+
 The `MP2.4 Monitoring Validation` workflow is a separate evidence check for the
 exact candidate revision. It runs app tests, validates Prometheus and
 Alertmanager configuration, verifies Prometheus can scrape the app, and

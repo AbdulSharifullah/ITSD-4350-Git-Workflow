@@ -25,6 +25,10 @@ jobs:
     outputs:
       image: ${{ steps.publish.outputs.image }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: staging-application-${{ github.event.workflow_run.head_sha }}
@@ -52,6 +56,7 @@ jobs:
     needs: publish-image
     permissions:
       actions: read
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -112,6 +117,63 @@ jobs:
           printf 'Revision: %s\nImage: %s\nURL: %s\nRun: %s/%s/actions/runs/%s\n' \
             "$APP_SHA" "$DEPLOY_IMAGE" "$STAGING_URL" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" \
             | tee deployment-evidence/summary.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Validate actual staging metrics with Prometheus
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: |
+          set -euo pipefail
+          host="${STAGING_URL#https://}"
+          host="${host%%/*}"
+          [[ "$host" =~ ^[A-Za-z0-9.-]+(:[0-9]+)?$ ]] || { echo 'Invalid HTTPS staging host'; exit 1; }
+          docker compose -f docker-compose.monitoring.yml up -d alertmanager
+          docker compose -f docker-compose.monitoring.yml exec -T alertmanager \
+            amtool check-config /etc/alertmanager/alertmanager.yml
+          config="$RUNNER_TEMP/prometheus-staging.yml"
+          cat > "$config" <<EOF
+          global:
+            scrape_interval: 5s
+            evaluation_interval: 5s
+          rule_files:
+            - /etc/prometheus/alert-rules.yml
+          alerting:
+            alertmanagers:
+              - static_configs:
+                  - targets: ["127.0.0.1:9093"]
+          scrape_configs:
+            - job_name: flask-app
+              scheme: https
+              metrics_path: /metrics
+              static_configs:
+                - targets: ["$host"]
+          EOF
+          docker run -d --name itsd4350-staging-prometheus --network host \
+            -v "$config:/etc/prometheus/prometheus.yml:ro" \
+            -v "$GITHUB_WORKSPACE/monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro" \
+            prom/prometheus:v3.7.3 --config.file=/etc/prometheus/prometheus.yml
+          docker exec itsd4350-staging-prometheus \
+            promtool check config /etc/prometheus/prometheus.yml
+          scrape=""
+          for attempt in $(seq 1 30); do
+            scrape=$(curl --fail --silent --show-error \
+              'http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22flask-app%22%7D' \
+              | jq -er '.data.result[0].value[1] // empty' || true)
+            [[ "$scrape" == "1" ]] && break
+            sleep 2
+          done
+          [[ "$scrape" == "1" ]] || { echo 'Prometheus could not scrape staging'; exit 1; }
+          for sample in 1 2 3; do
+            python smoke_test.py "$STAGING_URL" "$APP_SHA" --attempts 1 \
+              2>&1 | tee -a deployment-evidence/monitoring-smoke-tests.log
+            sleep 5
+          done
+          python monitoring/staging_report.py --revision "$APP_SHA" \
+            --window-seconds 30 --output deployment-evidence/monitoring-report.md
+          cat deployment-evidence/monitoring-report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Clean up temporary monitoring services
+        if: always()
+        run: |
+          docker rm -f itsd4350-staging-prometheus 2>/dev/null || true
+          docker compose -f docker-compose.monitoring.yml down --remove-orphans -v || true
       - name: Preserve deployment diagnostics even on failure
         if: always()
         uses: actions/upload-artifact@v4

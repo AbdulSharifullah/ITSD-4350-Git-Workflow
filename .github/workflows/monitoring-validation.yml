@@ -28,8 +28,10 @@ jobs:
       - name: Run app tests and lint
         run: |
           pytest -q
-          flake8 app.py smoke_test.py test_app.py monitoring/alert_sink.py monitoring/collect_report.py --max-line-length=100
+          flake8 app.py smoke_test.py test_app.py monitoring/alert_sink.py monitoring/collect_report.py monitoring/staging_report.py --max-line-length=100
       - name: Validate Compose and monitoring configurations
+        env:
+          APP_REVISION: ${{ github.sha }}
         run: |
           docker compose -f docker-compose.monitoring.yml config --quiet
           docker compose -f docker-compose.monitoring.yml up -d --build --wait
