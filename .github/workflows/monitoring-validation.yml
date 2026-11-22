@@ -101,7 +101,7 @@ jobs:
         run: |
           git archive --format=zip --output=mp24-submission.zip HEAD \
             .dockerignore Dockerfile app.py calculator.py smoke_test.py test_app.py \
-            test_calculator.py test_deployment.py requirements.txt \
+            test_calculator.py test_deployment.py test_promotion_gate.py requirements.txt \
             requirements-staging.txt requirements-staging.lock \
             docker-compose.monitoring.yml monitoring MP24-README.md \
             RELEASE-GOVERNANCE.md .github/workflows/ci.yml \
