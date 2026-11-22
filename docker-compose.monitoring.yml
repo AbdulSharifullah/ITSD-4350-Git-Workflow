@@ -1,0 +1,65 @@
+name: itsd4350-monitoring
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_REVISION: ${APP_REVISION:-local}
+    environment:
+      APP_ENV: local
+      APP_REVISION: ${APP_REVISION:-local}
+      SECRET_KEY: ${SECRET_KEY:-local-only-not-for-production}
+    ports:
+      - "127.0.0.1:18000:10000"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - ./monitoring/alert-rules.test.yml:/etc/prometheus/alert-rules.test.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      app:
+        condition: service_healthy
+      pushgateway:
+        condition: service_started
+
+  pushgateway:
+    image: prom/pushgateway:v1.11.2
+    ports:
+      - "127.0.0.1:9091:9091"
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command: [--config.file=/etc/alertmanager/alertmanager.yml]
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "127.0.0.1:9093:9093"
+    depends_on:
+      - mailpit
+      - alert-sink
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    expose: [1025]
+    ports:
+      - "127.0.0.1:8025:8025"
+
+  alert-sink:
+    image: python:3.14-slim
+    command: [python, /app/alert_sink.py]
+    volumes:
+      - ./monitoring/alert_sink.py:/app/alert_sink.py:ro
+    expose: [8080]
+    ports:
+      - "127.0.0.1:8081:8080"
