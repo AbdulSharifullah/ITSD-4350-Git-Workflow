@@ -9,6 +9,13 @@ then runs the calculator, CSRF, health, revision, and metrics smoke checks.
 Any failed deploy or smoke check fails the staging workflow and leaves no
 successful candidate for promotion.
 
+The `MP2.4 Monitoring Validation` workflow is a separate evidence check for the
+exact candidate revision. It runs app tests, validates Prometheus and
+Alertmanager configuration, verifies Prometheus can scrape the app, and
+confirms both notification routes reach their local test receivers. The
+promotion workflow checks this result and successful staging evidence before
+the protected environment approval.
+
 ```mermaid
 flowchart TD
   A[Build and test] --> B[Deploy immutable image to staging]
@@ -33,7 +40,7 @@ the drill.
 
 The existing workflow includes a manual dispatch and an explicit approval
 input. For a stronger gate, configure a GitHub Actions environment named
-`production` with required reviewers and attach it to the promotion job before
+`production-simulation` with required reviewers and attach it to the promotion job before
 merging the workflow update. The repository's environment settings are account
 owner controls and are not changed by a workflow file. Until required reviewers
 are configured and verified in repository settings, treat the dispatch input as

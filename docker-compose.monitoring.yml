@@ -24,11 +24,19 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - ./monitoring/alert-rules.test.yml:/etc/prometheus/alert-rules.test.yml:ro
     ports:
       - "127.0.0.1:9090:9090"
     depends_on:
       app:
         condition: service_healthy
+      pushgateway:
+        condition: service_started
+
+  pushgateway:
+    image: prom/pushgateway:v1.11.2
+    ports:
+      - "127.0.0.1:9091:9091"
 
   alertmanager:
     image: prom/alertmanager:v0.28.1

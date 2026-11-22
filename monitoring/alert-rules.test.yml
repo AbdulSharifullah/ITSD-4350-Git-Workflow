@@ -1,0 +1,53 @@
+rule_files:
+  - alert-rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="flask-app"}'
+        values: '0+0x8'
+      - series: 'app_readiness_status{job="flask-app"}'
+        values: '0+0x8'
+      - series: 'http_requests_total{job="flask-app",method="GET",status="500"}'
+        values: '0+10x8'
+      - series: 'http_requests_total{job="flask-app",method="GET",status="200"}'
+        values: '0+0x8'
+      - series: 'http_request_duration_seconds_bucket{job="flask-app",method="GET",le="0.5"}'
+        values: '0+0x8'
+      - series: 'http_request_duration_seconds_bucket{job="flask-app",method="GET",le="1"}'
+        values: '0+10x8'
+      - series: 'http_request_duration_seconds_bucket{job="flask-app",method="GET",le="+Inf"}'
+        values: '0+10x8'
+      - series: 'deployment_validation_status{job="deployment-validation"}'
+        values: '0+0x8'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: ApplicationUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: flask-app
+              severity: critical
+      - eval_time: 7m
+        alertname: ReadinessCheckFailed
+        exp_alerts:
+          - exp_labels:
+              job: flask-app
+              severity: critical
+      - eval_time: 7m
+        alertname: ElevatedHttp5xxRate
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+      - eval_time: 7m
+        alertname: ExcessiveRequestLatency
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+      - eval_time: 7m
+        alertname: DeploymentValidationFailed
+        exp_alerts:
+          - exp_labels:
+              job: deployment-validation
+              severity: critical

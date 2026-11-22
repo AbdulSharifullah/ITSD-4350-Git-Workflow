@@ -31,8 +31,13 @@ def main():
     metrics = get_text(args.app + "/metrics")
     scrape_up = query(args.prometheus, 'up{job="flask-app"}')
     readiness = query(args.prometheus, "app_readiness_status")
+    validation_alert = query(
+        args.prometheus,
+        'ALERTS{alertname="DeploymentValidationFailed",alertstate="firing"}')
     if scrape_up != 1 or readiness != 1:
         raise SystemExit("Report blocked: Prometheus target or readiness is unhealthy")
+    if args.alert_routing == "passed" and validation_alert != 1:
+        raise SystemExit("Report blocked: failed-validation alert was not observed")
 
     metric_values = {}
     for line in metrics.splitlines():
@@ -74,6 +79,9 @@ def main():
          if mean_latency is not None else "- Mean observed request latency: no requests"),
         f"- Prometheus scrape: {'PASS' if scrape_up == 1 else 'FAIL'}",
         f"- Alert routing to local SMTP and webhook sinks: {args.alert_routing.upper()}",
+        ("- Failed-validation alert evaluation: PASS (simulated injected failure)"
+         if validation_alert == 1 else
+         "- Failed-validation alert evaluation: not observed"),
         "- External notification delivery: not tested; local capture services only",
         "- Production approval: not requested by this validation workflow",
         "- Rollback: not exercised by this workflow; see the blue/green simulation",

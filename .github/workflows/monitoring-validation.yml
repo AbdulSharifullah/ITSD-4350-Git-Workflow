@@ -37,6 +37,8 @@ jobs:
             promtool check config /etc/prometheus/prometheus.yml
           docker compose -f docker-compose.monitoring.yml exec -T alertmanager \
             amtool check-config /etc/alertmanager/alertmanager.yml
+          docker compose -f docker-compose.monitoring.yml exec -T prometheus \
+            promtool test rules /etc/prometheus/alert-rules.test.yml
       - name: Verify app and Prometheus scrape
         env:
           EXPECTED_REVISION: ${{ github.sha }}
@@ -53,26 +55,25 @@ jobs:
           [[ "$result" == "1" ]] || { echo 'Prometheus did not scrape the Flask app'; exit 1; }
           curl --fail --silent --show-error 'http://127.0.0.1:9090/api/v1/query?query=app_readiness_status' \
             | jq -e '.data.result[0].value[1] == "1"'
-      - name: Verify local email and webhook notification routing
+      - name: Fire a simulated failed-validation alert through Prometheus
         run: |
           set -euo pipefail
-          starts_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          jq -n --arg starts "$starts_at" '[{
-            labels:{alertname:"MP24NotificationRouteTest",severity:"warning"},
-            annotations:{summary:"Automated routing test",description:"Synthetic alert for the local test sinks."},
-            startsAt:$starts
-          }]' | curl --fail --silent --show-error -X POST \
-            -H 'Content-Type: application/json' --data-binary @- \
-            http://127.0.0.1:9093/api/v2/alerts
+          printf 'deployment_validation_status 0\n' | curl --fail --silent --show-error -X PUT \
+            --data-binary @- http://127.0.0.1:9091/metrics/job/deployment-validation
+          fired=false
           delivered=false
           for attempt in $(seq 1 20); do
+            firing=$(curl --fail --silent --show-error \
+              'http://127.0.0.1:9090/api/v1/query?query=ALERTS%7Balertname%3D%22DeploymentValidationFailed%22%2Calertstate%3D%22firing%22%7D' \
+              | jq -r '.data.result | length')
             webhook_count=$(curl --fail --silent --show-error http://127.0.0.1:8081/health | jq -r '.received')
             email_count=$(curl --fail --silent --show-error http://127.0.0.1:8025/api/v1/messages | jq -r '.messages | length')
-            if [[ "$webhook_count" -ge 1 && "$email_count" -ge 1 ]]; then delivered=true; break; fi
+            [[ "$firing" -ge 1 ]] && fired=true
+            if [[ "$firing" -ge 1 && "$webhook_count" -ge 1 && "$email_count" -ge 1 ]]; then delivered=true; break; fi
             sleep 2
           done
-          [[ "$delivered" == true ]] || { echo "Alert not received by both local sinks (webhook=$webhook_count email=$email_count)"; exit 1; }
-          printf 'PASS: Alertmanager delivered to local webhook sink (%s) and SMTP capture (%s messages).\n' "$webhook_count" "$email_count" | tee monitoring-validation.txt
+          [[ "$delivered" == true ]] || { echo "Validation alert did not fire and reach both local sinks (fired=$fired webhook=$webhook_count email=$email_count)"; exit 1; }
+          printf 'PASS: failed-validation rule fired; Alertmanager delivered to webhook (%s alerts) and SMTP capture (%s messages). This was a simulated validation failure.\n' "$webhook_count" "$email_count" | tee monitoring-validation.txt
       - name: Collect short-window monitoring report
         if: always()
         run: |

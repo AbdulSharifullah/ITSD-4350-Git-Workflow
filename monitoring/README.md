@@ -15,6 +15,8 @@ docker compose -f docker-compose.monitoring.yml exec -T prometheus \
   promtool check config /etc/prometheus/prometheus.yml
 docker compose -f docker-compose.monitoring.yml exec -T alertmanager \
   amtool check-config /etc/alertmanager/alertmanager.yml
+docker compose -f docker-compose.monitoring.yml exec -T prometheus \
+  promtool test rules /etc/prometheus/alert-rules.test.yml
 python smoke_test.py http://127.0.0.1:18000 local
 ```
 
@@ -41,10 +43,13 @@ liveness and readiness checks.
 | ExcessiveRequestLatency | 5 minute p95 exceeds 500 ms | 2 minutes |
 | DeploymentValidationFailed | validation status gauge is zero | immediate |
 
-The validation alert accepts a `deployment_validation_status` metric from a
-future release reporter; the current stack does not pretend that metric exists.
-Its rule remains inactive until that reporter is added. The other application
-rules use metrics emitted by the Flask app.
+The validation status is scraped from the local Pushgateway. The CI integration
+test pushes a simulated failed validation and confirms that the Prometheus
+alert fires and reaches both local notification sinks. `promtool test rules`
+also exercises all five alert expressions using fixture time series. This
+simulated failure verifies the alert path; it is not evidence that a real
+staging deployment failed. The other application rules use metrics emitted by
+the Flask app.
 
 For real notifications, replace the test SMTP and webhook endpoints with
 organization-managed endpoints, store credentials in the deployment secret

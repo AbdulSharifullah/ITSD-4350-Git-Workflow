@@ -30,7 +30,7 @@ def verify(base_url, revision):
 
     health = json.loads(get("/health"))
     if health != {"status": "ok", "revision": revision}:
-        raise ValueError("Legacy health response has the wrong revision")
+        raise ValueError("Health response does not match expected revision")
     if json.loads(get("/health/live")).get("status") != "alive":
         raise ValueError("Liveness check failed")
     readiness = json.loads(get("/health/ready"))
