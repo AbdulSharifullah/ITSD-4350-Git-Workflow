@@ -52,6 +52,12 @@ owner controls and are not changed by a workflow file. Until required reviewers
 are configured and verified in repository settings, treat the dispatch input as
 a manual acknowledgment, not as an independently enforced reviewer gate.
 
+Before dispatching, the release operator checks that the run ID, candidate SHA,
+staging image digest, smoke-test evidence, and matching monitoring run are all
+for the same revision. The designated environment reviewer independently
+reviews that evidence and the rollback procedure before approving the isolated
+simulation. A rejected review or any failed validation blocks the job.
+
 ## Release blockers
 
 - CI, required quality checks, staging deployment, or staging smoke tests fail.
@@ -70,7 +76,10 @@ stack routes these to Mailpit and a local webhook capture service so both
 delivery paths can be tested without contacting external recipients. Real
 staging notification delivery still requires owner-provided SMTP/webhook
 settings and a verification run in that environment. Review active alerts and
-failed staging checks before approving any candidate.
+failed staging checks before approving any candidate. Treat a critical alert
+as an immediate release stop and escalate it to the environment reviewer and
+repository owner. Review warning alerts and their supporting metrics before
+approval; do not approve while a warning remains unexplained.
 
 ## Rollback
 
@@ -80,3 +89,4 @@ the stable endpoint reports the previous revision, then inspect container logs
 and the workflow's uploaded evidence. For the isolated simulation, follow
 [`bluegreen/ROLLBACK.md`](bluegreen/ROLLBACK.md). Do not treat a simulation
 rollback as proof of production recovery.
+
