@@ -28,7 +28,7 @@ jobs:
       - name: Run app tests and lint
         run: |
           pytest -q
-          flake8 app.py smoke_test.py test_app.py monitoring/alert_sink.py monitoring/collect_report.py monitoring/staging_report.py --max-line-length=100
+          flake8 app.py smoke_test.py test_app.py monitoring/alert_sink.py monitoring/collect_report.py monitoring/staging_report.py monitoring/verify_promotion_candidate.py --max-line-length=100
       - name: Validate Compose and monitoring configurations
         env:
           APP_REVISION: ${{ github.sha }}
@@ -108,6 +108,27 @@ jobs:
             .github/workflows/cd.yml \
             .github/workflows/production-bluegreen.yml \
             .github/workflows/monitoring-validation.yml bluegreen
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile
+
+          evidence = Path("monitoring-evidence")
+          report = evidence / "deployment-validation-report.md"
+          required = [report, evidence / "monitoring-validation.txt",
+                      evidence / "app-metrics.txt", evidence / "prometheus-target.json",
+                      evidence / "collected-at-utc.txt"]
+          missing = [str(path) for path in required if not path.is_file()]
+          if missing:
+              raise SystemExit("Required validation evidence is missing: " + ", ".join(missing))
+          target = json.loads((evidence / "prometheus-target.json").read_text())
+          values = target.get("data", {}).get("result", [])
+          if not values or values[0].get("value", [None, None])[1] != "1":
+              raise SystemExit("Prometheus target evidence does not show a successful scrape")
+          with ZipFile("mp24-submission.zip", "a", compression=ZIP_DEFLATED) as archive:
+              for path in required:
+                  archive.write(path, f"validation-evidence/{path.name}")
+          PY
       - name: Upload the MP2.4 submission ZIP
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
