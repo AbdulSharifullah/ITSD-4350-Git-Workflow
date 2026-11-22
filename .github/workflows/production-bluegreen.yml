@@ -74,14 +74,12 @@ jobs:
           set -euo pipefail
           [[ "$STAGING_RUN_ID" =~ ^[0-9]+$ ]]
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_RUN_ID" > "$RUNNER_TEMP/staging.json"
-          jq -e --arg sha "$GITHUB_SHA" \
-            '.conclusion == "success" and .head_sha == $sha and .head_branch == "main" and .path == ".github/workflows/cd.yml"' \
-            "$RUNNER_TEMP/staging.json"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=100" \
             > "$RUNNER_TEMP/workflow-runs.json"
-          jq -e --arg sha "$GITHUB_SHA" \
-            '.workflow_runs[] | select(.head_sha == $sha and .path == ".github/workflows/monitoring-validation.yml" and .conclusion == "success")' \
-            "$RUNNER_TEMP/workflow-runs.json"
+          python monitoring/verify_promotion_candidate.py \
+            --candidate-sha "$GITHUB_SHA" \
+            --staging-run "$RUNNER_TEMP/staging.json" \
+            --workflow-runs "$RUNNER_TEMP/workflow-runs.json"
           attempt=$(jq -er '.run_attempt' "$RUNNER_TEMP/staging.json")
           mkdir -p "$RUNNER_TEMP/staging-evidence"
           gh run download "$STAGING_RUN_ID" -R "$GITHUB_REPOSITORY" \
