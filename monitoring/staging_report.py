@@ -38,8 +38,9 @@ def main():
     revision = query(args.prometheus,
                      f'app_build_info{{revision="{args.revision}"}}')
     requests = query(args.prometheus, f"sum(http_requests_total{base})")
-    errors = query(args.prometheus,
-                   f'sum(http_requests_total{{job="flask-app",status=~"5.."}})')
+    errors = query(
+        args.prometheus,
+        'sum(http_requests_total{job="flask-app",status=~"5.."})')
     uptime = query(args.prometheus, "time() - process_start_time_seconds")
     mean_latency = query(
         args.prometheus,

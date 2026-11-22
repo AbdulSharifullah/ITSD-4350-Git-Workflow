@@ -31,7 +31,9 @@ docker-compose.monitoring.yml down`.
 The app emits request totals by method and status code, latency histogram
 buckets, readiness, process start time, and build revision. `/metrics` is
 scraped every five seconds. Application paths are not used as metric labels,
-keeping cardinality bounded. `/health` remains compatible with the earlier
+keeping cardinality bounded. The small staging container uses one Gunicorn
+worker with four threads so its in-memory counters include every request.
+`/health` remains compatible with the earlier
 deployment pipeline; `/health/live` and `/health/ready` provide separate
 liveness and readiness checks.
 
