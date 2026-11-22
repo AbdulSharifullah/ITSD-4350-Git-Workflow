@@ -36,7 +36,8 @@ request counts, latency, error rate, readiness, and critical alerts in the
 deployment evidence artifact. A failed target, readiness check, revision match,
 or critical alert fails the staging workflow.
 
-The monitoring validation run also produces a source-only submission ZIP as a
-separate GitHub Actions artifact. It excludes generated evidence, local runtime
-state, caches, and credentials.
+The monitoring validation run also produces a submission ZIP as a separate
+GitHub Actions artifact. It includes the implementation, documentation, and
+the generated short-window validation report with its minimal metrics and
+scrape evidence. It excludes local runtime state, caches, and credentials.
 
