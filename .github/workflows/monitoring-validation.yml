@@ -128,6 +128,22 @@ jobs:
           with ZipFile("mp24-submission.zip", "a", compression=ZIP_DEFLATED) as archive:
               for path in required:
                   archive.write(path, f"validation-evidence/{path.name}")
+          required_entries = {
+              "app.py", "Dockerfile", "docker-compose.monitoring.yml",
+              "monitoring/prometheus.yml", "monitoring/alert-rules.yml",
+              "monitoring/alertmanager.yml", "monitoring/README.md",
+              "RELEASE-GOVERNANCE.md", ".github/workflows/cd.yml",
+              ".github/workflows/production-bluegreen.yml",
+              "validation-evidence/deployment-validation-report.md",
+              "validation-evidence/monitoring-validation.txt",
+          }
+          with ZipFile("mp24-submission.zip") as archive:
+              names = set(archive.namelist())
+          missing_entries = sorted(required_entries - names)
+          if missing_entries:
+              raise SystemExit("Submission ZIP is missing required deliverables: "
+                               + ", ".join(missing_entries))
+          print("Verified required ZIP entries: " + ", ".join(sorted(required_entries)))
           PY
       - name: Upload the MP2.4 submission ZIP
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -139,4 +155,3 @@ jobs:
       - name: Clean up local monitoring stack
         if: always()
         run: docker compose -f docker-compose.monitoring.yml down --remove-orphans -v
-
