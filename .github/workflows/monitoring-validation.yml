@@ -97,6 +97,25 @@ jobs:
           path: monitoring-evidence/
           if-no-files-found: warn
           retention-days: 30
+      - name: Package the MP2.4 submission files
+        run: |
+          git archive --format=zip --output=mp24-submission.zip HEAD \
+            .dockerignore Dockerfile app.py calculator.py smoke_test.py test_app.py \
+            test_calculator.py test_deployment.py requirements.txt \
+            requirements-staging.txt requirements-staging.lock \
+            docker-compose.monitoring.yml monitoring MP24-README.md \
+            RELEASE-GOVERNANCE.md .github/workflows/ci.yml \
+            .github/workflows/cd.yml \
+            .github/workflows/production-bluegreen.yml \
+            .github/workflows/monitoring-validation.yml bluegreen
+      - name: Upload the MP2.4 submission ZIP
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mp24-submission-${{ github.sha }}
+          path: mp24-submission.zip
+          if-no-files-found: error
+          retention-days: 30
       - name: Clean up local monitoring stack
         if: always()
         run: docker compose -f docker-compose.monitoring.yml down --remove-orphans -v
+
