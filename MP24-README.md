@@ -29,3 +29,14 @@ configuration checks, an application smoke test, verifies a successful
 Prometheus scrape, tests email and webhook routing against local capture
 services, and uploads genuine short-window evidence. CI evidence is not a
 claim of long-term uptime or external notification delivery.
+
+On `main`, the staging workflow also runs Prometheus against the actual Render
+staging URL for a short observation window after deployment. It records uptime,
+request counts, latency, error rate, readiness, and critical alerts in the
+deployment evidence artifact. A failed target, readiness check, revision match,
+or critical alert fails the staging workflow.
+
+The monitoring validation run also produces a source-only submission ZIP as a
+separate GitHub Actions artifact. It excludes generated evidence, local runtime
+state, caches, and credentials.
+
