@@ -79,16 +79,20 @@ def main():
          if mean_latency is not None else "- Mean observed request latency: no requests"),
         f"- Prometheus scrape: {'PASS' if scrape_up == 1 else 'FAIL'}",
         f"- Alert routing to local SMTP and webhook sinks: {args.alert_routing.upper()}",
-        "- Application unit tests and lint: PASS (this report is created only after those gates pass)",
+        "- Application unit tests and lint: PASS (generated after those gates pass)",
         "- Application smoke tests: PASS (same workflow run)",
         ("- Failed-validation alert evaluation: PASS (simulated injected failure)"
          if validation_alert == 1 else
          "- Failed-validation alert evaluation: not observed"),
         "- External notification delivery: not tested; local capture services only",
-        "- Live Render staging monitoring: not run by pull-request CI; this report covers the isolated CI app",
-        "- Failed staging candidate blocks promotion: the manual workflow requires matching successful staging and monitoring runs",
-        "- Production approval: not requested by this validation workflow; the protected environment must be configured separately",
-        "- Rollback: not exercised by this workflow; the blue/green rollback drill is a separate simulation",
+        ("- Live Render staging monitoring: not run by pull-request CI; this report covers "
+         "the isolated CI app"),
+        ("- Failed staging candidates block promotion: the manual workflow requires "
+         "matching successful staging and monitoring runs"),
+        ("- Production approval: not requested by this validation workflow; configure "
+         "the protected environment separately"),
+        ("- Rollback: not exercised by this workflow; the blue/green rollback drill "
+         "is a separate simulation"),
         "",
         "Metrics reflect this container's lifetime, not a long-term availability SLA.",
     ]
